@@ -2,7 +2,7 @@
 Program Name : compare_R_SAS.sas
 Purpose : 
 Author : Kato Kiroku, Mariko Ohtsuka
-Date : 2020-12-15
+Date : 2020-12-16
 SAS version : 9.4
 **************************************************************************;
 
@@ -180,16 +180,8 @@ run;
             call symput('targetfile', filename);
           end;
       run;
-      *Delete the variable "Var_Obs" if it exists.;
-      data sas_comp;
-          set sas_&targetfile.;
-          if vnamex("Var_Obs") ne '' then do;
-            drop Var_obs;
-          end;
-      run;
-      *num => char;
       proc printto print="&out.\Result_%sysfunc(strip(&targetfile.)).txt" new; run;
-          proc compare base=r_&targetfile. compare=sas_comp out=Result_&targetfile.; run;
+          proc compare base=r_&targetfile. compare=sas_&targetfile. out=Result_&targetfile. listall; run;
       proc printto; run;
     %end; 
 %mend COMPARE;
