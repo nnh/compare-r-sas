@@ -9,13 +9,21 @@ library(tidyverse)
 library(haven)
 library(here)
 # ------ function ------
-CompareDataset <- function(datasetName) {
+GetTargetColnames <- function(df) {
+  res <- df |> colnames() |> sort() |> map_if( ~ . == kExcludeVar, ~ NULL) |> discard( ~ is.null(.)) |> list_c()
+  return(res)
+}
+GetRObject <- function(datasetName) {
   file.path(str_c(kInputRPath, datasetName, kRExtention)) |> load()
   r_file <- get(datasetName)
   rm(list = datasetName)
+  return(r_file)  
+}
+CompareDataset <- function(datasetName) {
+  r_file <- GetRObject(datasetName)
   sas_file  <- file.path(str_c(kInputSasPath, datasetName, kSasExtention)) |> haven::read_sas()  
   rColnames <- r_file |> colnames() |> sort()
-  sasColnames <- sas_file |> colnames() |> sort() |> map_if( ~ . == "Var_Obs", ~ NULL) |> discard( ~ is.null(.)) |> list_c()
+  sasColnames <- sas_file |> GetTargetColnames()
   if (!identical(rColnames, sasColnames)) {
     print(datasetName)
     stop("Error: The columns of the datasets do not match.")
@@ -45,31 +53,17 @@ CompareDataset <- function(datasetName) {
   print(str_c(datasetName, " : compare ok."))
   return(NULL)
 }
-# ------ constant ------
-kRExtention <- ".Rda"
-kSasExtention <- ".sas7bdat"
-# ------ path setting ------
-kInputRPath <- "C:\\Users\\MarikoOhtsuka\\Documents\\GitHub\\ptosh-format\\ptosh-format\\r-ads\\"
-kInputSasPath <- "C:\\Users\\MarikoOhtsuka\\Documents\\GitHub\\ptosh-format\\ptosh-format\\sas-ads\\"
-# ------ processing ------
-rdaList <- kInputRPath |> list.files(pattern=kRExtention) |> 
-  map_if( ~ . == "output_option_csv.Rda" | . == "output_sheet_csv.Rda", ~ NULL) |> discard( ~ is.null(.)) |> list_c()
-sas7bdatList <- kInputSasPath |> list.files(pattern=kSasExtention)
-datasetList <- str_remove(sas7bdatList, kSasExtention)
-if (!identical(str_remove(rdaList, kRExtention), datasetList)) {
-  stop("Error: The datasets are not equal.")
-}
-res <- datasetList |> map( ~ CompareDataset(.))
-# ラベル適用後のデータセットを出力する
-CreateDataSetForCompareBySas <- function(datasetName) {
-  kOutputFolderName <- "csv"
-  file.path(str_c(kInputRPath, datasetName, kRExtention)) |> load()
-  r_file <- get(datasetName)
-  rm(list = datasetName)
-  outputFolder <- str_c(kInputRPath, kOutputFolderName)
+CreateFolder <- function(path, folderName) {
+  outputFolder <- str_c(path, folderName)
   if (!dir.exists(outputFolder)) {
     dir.create(outputFolder)
   }
+  return(outputFolder)
+}
+CreateDataSetForCompareBySas <- function(datasetName) {
+  r_file <- GetRObject(datasetName)
+  outputFolder <- CreateFolder(kInputRPath, kOutputFolderName)
+  dummy <- CreateFolder(kInputSasPath, kOutputFolderName)
   df <- r_file |> map( ~ {
     targetCol <- .
     labels <- attr(targetCol, "labels")
@@ -84,6 +78,45 @@ CreateDataSetForCompareBySas <- function(datasetName) {
   for (col in names(df)) {
     attr(df[[col]], "label") <- NULL
   }
-  write.csv(df, file.path(outputFolder, str_c("r_", datasetName, ".csv")), fileEncoding = "cp932")
+  write_csv(df, file.path(outputFolder, str_c("r_", datasetName, ".csv")))
 }
 
+# ------ constant ------
+kRExtention <- ".Rda"
+kSasExtention <- ".sas7bdat"
+kOutputFolderName <- "csv"
+kExcludeVar <- "Var_Obs"
+# ------ path setting ------
+kInputRPath <- "C:\\Users\\MarikoOhtsuka\\Documents\\GitHub\\ptosh-format\\ptosh-format\\r-ads\\"
+kInputSasPath <- "C:\\Users\\MarikoOhtsuka\\Documents\\GitHub\\ptosh-format\\ptosh-format\\sas-ads\\"
+# ------ processing ------
+rdaList <- kInputRPath |> list.files(pattern=kRExtention) |> 
+  map_if( ~ . == "output_option_csv.Rda" | . == "output_sheet_csv.Rda", ~ NULL) |> discard( ~ is.null(.)) |> list_c()
+sas7bdatList <- kInputSasPath |> list.files(pattern=kSasExtention)
+datasetList <- str_remove(sas7bdatList, kSasExtention)
+if (!identical(str_remove(rdaList, kRExtention), datasetList)) {
+  stop("Error: The datasets are not equal.")
+}
+res <- datasetList |> map( ~ CompareDataset(.))
+# ラベル適用後のデータセットを出力する
+dummy <- datasetList |> map( ~ CreateDataSetForCompareBySas(.))
+# フォーマット適用後のデータセット比較：ptdataのみCSVで比較
+r_csv_ptdata <- file.path(kInputRPath, kOutputFolderName, "r_ptdata.csv") |> read.csv(colClasses = "character", na.strings="")
+sas_csv_ptdata <- file.path(kInputSasPath, kOutputFolderName, "sas_ptdata.csv") |> 
+  read.csv(fileEncoding="cp932", colClasses = "character") |> select(-all_of(kExcludeVar))
+targetColnames <- sas_csv_ptdata |> colnames() |> sort()
+if (!identical(targetColnames, sort(colnames(r_csv_ptdata)))) {
+  stop("Error: Column Mismatch Detected")
+}
+if (!identical(nrow(r_csv_ptdata), nrow(sas_csv_ptdata))) {
+  stop("Error: Row Mismatch Detected")
+}
+for (col in 1:ncol(sas_csv_ptdata)) {
+  targetColname <- targetColnames[col]
+  sas_target <- sas_csv_ptdata[[targetColname]]
+  r_target <- r_csv_ptdata[[targetColname]] |> str_replace_all("NA", "")
+  if (!identical(sas_target, r_target)) {
+    warning("Error")
+    print(targetColname)
+  }
+}
