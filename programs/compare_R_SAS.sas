@@ -2,187 +2,104 @@
 Program Name : compare_R_SAS.sas
 Purpose : 
 Author : Kato Kiroku, Mariko Ohtsuka
-Date : 2020-12-16
+Date : 2024-9-26
 SAS version : 9.4
 **************************************************************************;
-
-
 proc datasets library=work kill nolist; quit;
 options mprint mlogic symbolgen xsync noxwait;
-options cmplib=work.funcdt;
-*^^^^^^^^^^Filename check^^^^^^^^^^;
+%let r_path = C:\Users\MarikoOhtsuka\Documents\GitHub\ptosh-format\ptosh-format\r-ads\csv; 
+%let sas_path = C:\Users\MarikoOhtsuka\Documents\GitHub\ptosh-format\ptosh-format\sas-ads; 
+libname mylib "&sas_path.";
+/* フォーマットカタログを設定 */
+options fmtsearch=(mylib);
+/* CSVファイルを取得するデータセットを作成 */
+filename mydir "&r_path.";
 
-proc fcmp outlib=work.funcdt.filecheck;
-    *If "filename" ends with "excluded_str", it returns 0. Otherwise, it returns 1.;
-    function CHECK_FILE_NON_TARGET(filename $, excluded_str $);
-        excluded_len = length(compress(excluded_str));
-        target_len = length(compress(filename));
-        check_start = target_len - excluded_len + 1;
-        if check_start ne 0 then do;
-          check_str = substr(filename, check_start, excluded_len);
+data csv_files;
+    rc = filename('mydir', "&r_path."); /* ディレクトリ名を指定 */
+    did = dopen('mydir'); /* ディレクトリを開く */
+
+    /* ファイルが存在する場合 */
+    if did > 0 then do;
+        /* ディレクトリ内のファイル数を取得 */
+        num_files = dnum(did);
+
+        /* 各ファイルの名前を取得 */
+        do i = 1 to num_files;
+            filename = dread(did, i); /* ファイル名を取得 */
+            /* CSVファイルだけをフィルタリング */
+            if scan(filename, -1, '.') = 'csv' then do;
+                output; /* データセットに追加 */
+                file_name = filename; /* ファイル名をデータセットに格納 */
+            end;
         end;
-        else do;
-          check_str = filename;
-        end;
-        if check_str = excluded_str then do;
-          res = 0;  
-        end; 
-        else do;
-          res = 1;
-        end;
-        return (res);
-    endsub;
-run;
 
-*^^^^^^^^^^Find the Current Working Directory^^^^^^^^^^;
-
-%macro FIND_WD;
-
-    %local _fullpath _path;
-    %let _fullpath=;
-    %let _path=;
-
-    %if %length(%sysfunc(getoption(sysin)))=0 %then
-      %let _fullpath=%sysget(sas_execfilepath);
-    %else
-      %let _fullpath=%sysfunc(getoption(sysin));
-
-    %let _path=%substr(&_fullpath., 1, %length(&_fullpath.)
-                       -%length(%scan(&_fullpath., -1, '\'))
-                       -%length(%scan(&_fullpath., -2, '\')) -2);
-
-    &_path.
-
-%mend FIND_WD;
-%let cwd=%FIND_WD;
-%put &cwd.;
-
-%let PATH2PRG=&cwd.\programs;
-%let PATH2R=&cwd.\input\R;
-%let PATH2SAS=&cwd.\input\SAS;
-
-%let create_temp_dir=%sysfunc(dcreate(temp, &cwd.));
-%let temp=&cwd.\temp;
-%let create_out_dir=%sysfunc(dcreate(output, &cwd.));
-%let out=&cwd.\output;
-*^^^^^^^^^^Dataset for CSV filename list^^^^^^^^^^;
-
-data ds_filename;
-    attrib filename length=$100.;
-    stop;
-run;
-*^^^^^^^^^^Removes the line feed code in a cell(for sae_report(R))^^^^^^^^^^;
-
-data _NULL_;
-    shell = 'C:\Windows\SysWOW64\cscript.exe';
-    script = %unquote(%bquote('"&PATH2PRG.\replaceCrlf.vbs"'));
-    args = %unquote(%bquote('"&PATH2R."'));
-    call system(catx(' ', shell, script, args));
-run;
-
-*^^^^^^^^^^Import All Raw Data within the "RAW" Directory^^^^^^^^^^;
-
-%macro READ_CSV (dir, ext, out);
-
-    %global cnt memcnt i;
-    %local filrf rc did name;
-    %let cnt=0;
-
-    %let filrf=mydir;
-    %let rc=%sysfunc(filename(filrf, &dir.));
-    %let did=%sysfunc(dopen(&filrf));
-    *If the directory exists, the process continues;
-    %if &did ne 0 %then %do;
-      *Counting the number of files in a directory;
-      %let memcnt=%sysfunc(dnum(&did));
-
-      %do i=1 %to &memcnt;
-        *Get the file extension;
-        %let name=%qscan(%qsysfunc(dread(&did, &i)), -1, .);
-        *Process only "*.csv".;
-        %if %qupcase(%qsysfunc(dread(&did, &i))) ne %qupcase(&name) %then %do;
-          %if %superq(ext) = %superq(name) %then %do;
-            %let cnt=%eval(&cnt+1);
-            %put %qsysfunc(dread(&did, &i));
-            *Get the name of the file. e.g."test.csv";
-            %let csvfile_&cnt=%qsysfunc(dread(&did, &i));
-            data &out._filename_&i;
-                length title $60;
-                title=compress(tranwrd("&&csvfile_&cnt", '.csv', '*'), '*'); output;
-                call symputx("csvname_&cnt", title, "G");
-            run;
-            %put &&csvname_&cnt;
-            *Do not import files without observations;
-            proc import datafile="&dir.\%qsysfunc(dread(&did, &i))"
-                out=obsCountCheck
-                dbms=csv replace;
-                getnames=NO;
-            run;
-            proc sql noprint;
-              select count(*) into : obsCount trimmed
-              from obsCountCheck;
-            quit;
-            %if &obsCount.>1 %then %do;
-              *Import a csv file;
-              proc import datafile="&dir.\%qsysfunc(dread(&did, &i))"
-                 out=&out._&&csvname_&cnt
-                 dbms=csv replace;
-                 guessingrows=MAX;
-              run;
-              *List of imported files; 
-              proc sql noprint;
-                insert into ds_filename set filename="&&csvname_&cnt.";
-              quit;
-            %end;
-          %end;
-        %end;
-      %end;
-    %end;
-    %else %put &dir. cannot be open.;
-    %let rc=%sysfunc(dclose(&did));
-
-%mend READ_CSV;
-
-%READ_CSV (&PATH2R., csv, r);
-%READ_CSV (&PATH2SAS., csv, sas);
-
-*^^^^^^^^^^Removing duplicate filenames^^^^^^^^^^;
-
-proc sort data=ds_filename out=ds_filename nodupkey; 
-    by filename; 
-run;
-
-*^^^^^^^^^^Exclude files not to be compared^^^^^^^^^^;
-data ds_targetfile;
-    set ds_filename;
-    array str{3} $30 e1 e2 e3;
-    str{1}='output_option_csv';
-    str{2}='output_sheet_csv';
-    str{3}='_contents';
-    res=1;
-    do i= 1 to 3;
-      res=CHECK_FILE_NON_TARGET(filename, str{i});
-      if res=0 then leave;
+        /* ディレクトリを閉じる */
+        rc = dclose(did);
     end;
-    if res ne 0 then output;
+
+    /* フォルダが存在しない場合 */
+    else put "ERROR: Directory does not exist.";
 run;
 
-data _NULL_;
-    set ds_targetfile;
-    call symput('cnt', _N_);
-run;
+/* CSVファイルをインポートするマクロ */
+%macro import_csv(csv_name);
+    /* CSVファイル名からデータセット名を作成 */
+    %let ds_name = %sysfunc(scan(&csv_name, 1, .));  /* 拡張子を除いたファイル名 */
+    %if %substr(&ds_name, 1, 2) = r_ %then %do;
+    	%let sas_name = %substr(&ds_name, 3); /* 3文字目以降を取得 */
+	%end;
+	%else %do;
+    	%let sas_name = &ds_name; /* 変更しない */
+	%end;
 
-%macro COMPARE;
-    %do i= 1 %to &cnt.;
-      data _NULL_;
-          set ds_targetfile;
-          if _N_=&i. then do;
-            call symput('targetfile', filename);
-          end;
-      run;
-      proc printto print="&out.\Result_%sysfunc(strip(&targetfile.)).txt" new; run;
-          proc compare base=r_&targetfile. compare=sas_&targetfile. out=Result_&targetfile. listall; run;
-      proc printto; run;
-    %end; 
-%mend COMPARE;
-%COMPARE;
+    /* CSVファイルを読み込む */
+    proc import datafile="&r_path\&csv_name" 
+                out=&ds_name 
+                dbms=csv 
+                replace;
+        getnames=yes;         /* 1行目を列名として使用 */
+        guessingrows=MAX;     /* 型推測に使用する行数を指定 */
+    run;
+	data work.csv_data;
+    	set work.r_ptdata;
+    	array char_vars _all_;  /* すべての変数を対象にする */
+    	do over char_vars;
+        	char_vars = put(char_vars, $CHAR200.); /* 200文字の文字列としてフォーマット */
+    	end;
+	run;
+	/* SAS データセット */
+	data temp;
+    	set mylib.&sas_name.;
+	run;
+	proc export data=temp
+    	outfile="&sas_path.\temp.csv" /* 出力先のCSVファイル名 */
+    	dbms=csv
+    	replace; /* 同名のファイルがあった場合は上書き */
+    	putnames=yes; /* 1行目に変数名を含める */
+	run;
+	proc import datafile="&sas_path.\temp.csv" 
+                out=work.sas_&sas_name. 
+                dbms=csv 
+                replace;
+        		getnames=yes;         /* 1行目を列名として使用 */
+        		guessingrows=MAX;     /* 型推測に使用する行数を指定 */
+    run;
+
+%mend import_csv;
+
+/* 取得したCSVファイルをインポート */
+proc sql noprint;
+    select filename into :csv_list separated by ', ' /* カンマで区切る */
+    from csv_files
+    where filename is not null; /* NULLを除外 */
+quit;
+
+/* 各CSVファイルをインポート */
+%macro import_all_csvs;
+    %do i = 1 %to %sysfunc(countw(&csv_list, %str(,))); /* カンマで区切り */
+        %let csv_file = %scan(&csv_list, &i, %str(,)); /* カンマ区切りで取得 */
+        %import_csv(&csv_file); /* インポートの実行 */
+    %end;
+%mend import_all_csvs;
+%import_all_csvs;

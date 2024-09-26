@@ -60,4 +60,30 @@ if (!identical(str_remove(rdaList, kRExtention), datasetList)) {
   stop("Error: The datasets are not equal.")
 }
 res <- datasetList |> map( ~ CompareDataset(.))
+# ラベル適用後のデータセットを出力する
+CreateDataSetForCompareBySas <- function(datasetName) {
+  kOutputFolderName <- "csv"
+  file.path(str_c(kInputRPath, datasetName, kRExtention)) |> load()
+  r_file <- get(datasetName)
+  rm(list = datasetName)
+  outputFolder <- str_c(kInputRPath, kOutputFolderName)
+  if (!dir.exists(outputFolder)) {
+    dir.create(outputFolder)
+  }
+  df <- r_file |> map( ~ {
+    targetCol <- .
+    labels <- attr(targetCol, "labels")
+    if (is.null(labels)) {
+      return(targetCol)
+    }
+    res <- factor(targetCol, 
+                  levels = labels, 
+                  labels = names(labels))
+    return(res)
+  }) |> bind_rows()
+  for (col in names(df)) {
+    attr(df[[col]], "label") <- NULL
+  }
+  write.csv(df, file.path(outputFolder, str_c("r_", datasetName, ".csv")), fileEncoding = "cp932")
+}
 
