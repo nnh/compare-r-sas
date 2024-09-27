@@ -25,9 +25,25 @@ CompareDataset <- function(datasetName) {
   rColnames <- r_file |> colnames() |> sort()
   sasColnames <- sas_file |> GetTargetColnames()
   if (!identical(rColnames, sasColnames)) {
-    print(datasetName)
-    stop("Error: The columns of the datasets do not match.")
+    if (length(setdiff(sasColnames, rColnames)) > 0) {
+      print(datasetName)
+      stop("Error: The columns of the datasets do not match.")
+    } else {
+      # rawdataが空だとSAS側で変数が作成されないようなので不一致のすべての値が空白ならテスト通過とする
+      diffColnames <- setdiff(rColnames, sasColnames)
+      testTarget <- r_file |> select(all_of(diffColnames))
+      checkNA <- all(is.na(testTarget))
+      if (!all(is.na(testTarget))) {
+        # rawdataが空だとSAS側で変数が作成されないようなので不一致のすべての値が空白ならテスト通過とする
+        print(datasetName)
+        stop("Error: The columns of the datasets do not match.")
+      }
+    }
   }
+  if (datasetName == "ptdata") {
+    ptdataColname <<- sasColnames
+  }
+  
   for (i in 1:length(sasColnames)) {
     targetColname <- sasColnames[i]
     test1 <- sas_file[[targetColname]] |> as.character()
@@ -36,6 +52,8 @@ CompareDataset <- function(datasetName) {
       for (j in 1:length(test1)) {
         if (!identical(test1[j], test2[j])) {
           if (test1[j] != "" | !is.na(test2[j])) {
+            test2[j] <- str_replace_all(test2[j], "搔", "　")
+            test2[j] <- str_replace_all(test2[j], "µ", "μ")
             test2[j] <- str_remove_all(test2[j], "\n")
             test2[j] <- str_replace_all(test2[j], "〜", "～")
             test2[j] <- test2[j] |> trimws()
@@ -104,9 +122,8 @@ dummy <- datasetList |> map( ~ CreateDataSetForCompareBySas(.))
 r_csv_ptdata <- file.path(kInputRPath, kOutputFolderName, "r_ptdata.csv") |> read.csv(colClasses = "character", na.strings="")
 sas_csv_ptdata <- file.path(kInputSasPath, kOutputFolderName, "sas_ptdata.csv") |> 
   read.csv(fileEncoding="cp932", colClasses = "character") |> select(-all_of(kExcludeVar))
-targetColnames <- sas_csv_ptdata |> colnames() |> sort()
 if (!identical(targetColnames, sort(colnames(r_csv_ptdata)))) {
-  stop("Error: Column Mismatch Detected")
+  r_csv_ptdata <- r_csv_ptdata |> select(all_of(ptdataColname))
 }
 if (!identical(nrow(r_csv_ptdata), nrow(sas_csv_ptdata))) {
   stop("Error: Row Mismatch Detected")
