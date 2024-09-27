@@ -116,7 +116,6 @@ for (col in 1:ncol(sas_csv_ptdata)) {
   sas_target <- sas_csv_ptdata[[targetColname]]
   r_target <- r_csv_ptdata[[targetColname]] |> str_replace_all("NA", "")
   if (!identical(sas_target, r_target)) {
-    warning("Error")
-    print(targetColname)
+    warning(str_c("Error: Value mismatch detected. column: ", targetColname))
   }
 }
