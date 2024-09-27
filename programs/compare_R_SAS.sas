@@ -5,9 +5,9 @@ Author : Kato Kiroku, Mariko Ohtsuka
 Date : 2024-9-26
 SAS version : 9.4
 **************************************************************************;
-proc datasets library=work kill nolist; quit;
+/*proc datasets library=work kill nolist; quit;*/
 options mprint mlogic symbolgen xsync noxwait;
-%let sas_path = C:\Users\MarikoOhtsuka\Documents\GitHub\ptosh-format\ptosh-format\sas-ads; 
+*%let sas_path = C:\Users\MarikoOhtsuka\Documents\GitHub\ptosh-format\ptosh-format\sas-ads; 
 libname mylib "&sas_path.";
 /* フォーマットカタログを設定 */
 options fmtsearch=(mylib);
