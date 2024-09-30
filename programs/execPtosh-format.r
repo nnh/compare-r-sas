@@ -2,7 +2,7 @@
 #' description
 #' @file execPtosh-format.R
 #' @author Mariko Ohtsuka
-#' @date 2024.9.27
+#' @date 2024.9.30
 #'
 ################################################ 
 # ptosh-format\ptosh-format\program            #
@@ -13,7 +13,6 @@ rm(list=ls())
 library(tidyverse)
 library(here)
 # ------ constants ------
-kTestConstants <- NULL
 # ------ functions ------
 GetHomeDir <- function() {
   os <- Sys.info()["sysname"]
@@ -28,6 +27,8 @@ GetHomeDir <- function() {
 }
 
 ExecPtoshFormat <- function(trialName) {
+  ptosh_format_prg_dir <- here("program") 
+  ptosh_format_log_dir <- here("log")
   kRawDatafolderName <- "rawdata"
   kExtfolderName <- "ext"
   kSheetCsv <- "sheets.csv"
@@ -48,15 +49,16 @@ ExecPtoshFormat <- function(trialName) {
   rawDataList <- list.files(file.path(inputFolder, kRawDatafolderName), full.names=T)
   rawDataList |> map( ~ file.copy(., rawdataDir))
   source(file.path(ptosh_format_prg_dir, "ptosh-format.R"), encoding='utf-8')
-  file.rename(file.path(ptosh_format_log_dir, "log.txt"), file.path(ptosh_format_log_dir, str_c("r_", trial_name, ".log")))
-  file.rename(here("ads"), here(str_c("r_ads_", trial_name)))
+  file.rename(here("ads"), here(str_c("r_ads_", trialName)))
 }
 # ------ main ------
 homeDir <- GetHomeDir()
 target_dir <- file.path(homeDir, "Box\\Datacenter\\Users\\ohtsuka\\ptosh_format_test")
 ptosh_format_dir <- file.path(homeDir, "Documents\\GitHub\\ptosh-format")
 ptosh_format_input_dir <- file.path(ptosh_format_dir, "input")
-ptosh_format_prg_dir <- here("program") 
-ptosh_format_log_dir <- here("log")
 targetTrials <- list.files(target_dir)
-targetTrials |> map( ~ ExecPtoshFormat(.))
+for (execPtoshFormatIdx in 1:length(targetTrials)) {
+  print(targetTrials[execPtoshFormatIdx])
+  ExecPtoshFormat(targetTrials[execPtoshFormatIdx])
+  rm(list=setdiff(ls(), c("execPtoshFormatIdx", "targetTrials", "ExecPtoshFormat", "ptosh_format_input_dir", "target_dir")))
+}

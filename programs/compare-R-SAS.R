@@ -1,7 +1,7 @@
 # compare-r-sas
 # Mariko Ohtsuka
 # 2020/12/17 created
-# 2024/9/25 fixed
+# 2024/9/30 fixed
 # ------ Remove objects ------
 rm(list=ls())
 # ------ library ------
@@ -9,6 +9,17 @@ library(tidyverse)
 library(haven)
 library(here)
 # ------ function ------
+GetHomeDir <- function() {
+  os <- Sys.info()["sysname"]
+  if (os == "Windows") {
+    home_dir <- Sys.getenv("USERPROFILE")
+  } else if (os == "Darwin") {
+    home_dir <- Sys.getenv("HOME")
+  } else {
+    stop("Unsupported OS")
+  }
+  return (home_dir)
+}
 GetTargetColnames <- function(df) {
   res <- df |> colnames() |> sort() |> map_if( ~ . == kExcludeVar, ~ NULL) |> discard( ~ is.null(.)) |> list_c()
   return(res)
@@ -72,7 +83,7 @@ CompareDataset <- function(datasetName) {
   return(NULL)
 }
 CreateFolder <- function(path, folderName) {
-  outputFolder <- str_c(path, folderName)
+  outputFolder <- file.path(path, folderName)
   if (!dir.exists(outputFolder)) {
     dir.create(outputFolder)
   }
@@ -99,8 +110,8 @@ CreateDataSetForCompareBySas <- function(datasetName) {
   write_csv(df, file.path(outputFolder, str_c("r_", datasetName, ".csv")))
 }
 ExecCompareMain <- function(trialName) {
-  kInputRPath <- file.path(kInputPath, str_c("r_ads_", trialName))
-  kInputSasPath <- file.path(kInputPath, str_c("sas_ads_", trialName))
+  kInputRPath <<- file.path(kInputPath, str_c("r_ads_", trialName))
+  kInputSasPath <<- file.path(kInputPath, str_c("sas_ads_", trialName))
   rdaList <- kInputRPath |> list.files(pattern=kRExtention) |> 
     map_if( ~ . == "output_option_csv.Rda" | . == "output_sheet_csv.Rda", ~ NULL) |> discard( ~ is.null(.)) |> list_c()
   sas7bdatList <- kInputSasPath |> list.files(pattern=kSasExtention)
@@ -115,18 +126,21 @@ ExecCompareMain <- function(trialName) {
   r_csv_ptdata <- file.path(kInputRPath, kOutputFolderName, "r_ptdata.csv") |> read.csv(colClasses = "character", na.strings="")
   sas_csv_ptdata <- file.path(kInputSasPath, kOutputFolderName, "sas_ptdata.csv") |> 
     read.csv(fileEncoding="cp932", colClasses = "character") |> select(-all_of(kExcludeVar))
-  if (!identical(targetColnames, sort(colnames(r_csv_ptdata)))) {
+  if (!identical(sort(colnames(sas_csv_ptdata)), sort(colnames(r_csv_ptdata)))) {
     r_csv_ptdata <- r_csv_ptdata |> select(all_of(ptdataColname))
   }
   if (!identical(nrow(r_csv_ptdata), nrow(sas_csv_ptdata))) {
     stop("Error: Row Mismatch Detected")
   }
   for (col in 1:ncol(sas_csv_ptdata)) {
-    targetColname <- targetColnames[col]
+    targetColname <- ptdataColname[col]
     sas_target <- sas_csv_ptdata[[targetColname]]
     r_target <- r_csv_ptdata[[targetColname]] |> str_replace_all("NA", "")
     if (!identical(sas_target, r_target)) {
       warning(str_c("Error: Value mismatch detected. column: ", targetColname))
+      print(targetColname)
+      print(sas_target[1])
+      print(r_target[1])
     }
   }
 }
@@ -136,6 +150,12 @@ kSasExtention <- ".sas7bdat"
 kOutputFolderName <- "csv"
 kExcludeVar <- "Var_Obs"
 # ------ path setting ------
+homeDir <- GetHomeDir()
+targetTrials <- file.path(homeDir, "Box\\Datacenter\\Users\\ohtsuka\\ptosh_format_test") |> list.files()
 kInputPath <- "C:\\Users\\MarikoOhtsuka\\Documents\\GitHub\\ptosh-format\\ptosh-format\\"
 # ------ processing ------
-ExecCompareMain("CJLSG1902")
+#for (i in 1:length(targetTrials)) {
+for (i in c(1:2, 4:6)) {
+print(targetTrials[i])
+  ExecCompareMain(targetTrials[i])
+}
