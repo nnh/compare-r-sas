@@ -1,20 +1,18 @@
 # compare-r-sas
+
 ## 概要
-ptosh-format.sasとptosh-format.Rで出力したCSVファイルの比較を行い、結果をoutputフォルダに出力する。
-## 処理実行に必要なディレクトリ構造
-```
-.
-├── input
-│   ├── R
-│   └── SAS
-└── programs
-    ├── compare-R-SAS.R
-    ├── compare_R_SAS.sas
-    └── replaceCrlf.vbs
-```
+
+ptosh-format.sas で出力した sas7bdat ファイルと ptosh-format.R で出力した rda ファイルの比較を行う。
+
 ## 実行手順
-SASの場合は該当プログラムをSAS（日本語）で開きサブミットする。  
-Rの場合はcompare-r-sas/でCreate Projectして該当のプログラムを開きSourceかRunで実行する。  
+
+1. execPtosh-format.sas を ptosh-format\ptosh-format\program にコピーして実行する。`試験名_sas-ads` フォルダの下に ptosh-format の実行結果および`csv`フォルダが作成され、その中に`sas_PTDATA.csv`が作成される。
+1. execPtosh-format.r を ptosh-format\ptosh-format\program にコピーし、ptosh-format のプロジェクトから開いて実行する。`試験名_r-ads` フォルダの下に ptosh-format の実行結果が作成される。
+1. R Studio を開き、compare-r-sas/で Create Project する。
+1. compare-R-SAS.r を Source か Run で実行する。`試験名_r-ads` フォルダの下に`csv`フォルダが作成され、その中に各 rda ファイルが CSV に変換されたファイルが作成される。
+1. 比較結果はコンソールに出力される。差分があった場合は R Studio で rda ファイルを開き、SAS で sas7bdat ファイルを開き、内容を比較する。
+
 ## License
+
 compare-r-sas are licensed under the MIT license.  
-Copyright © 2021, NHO Nagoya Medical Center and NPO-OSCR.  
+Copyright © 2024, NHO Nagoya Medical Center and NPO-OSCR.
