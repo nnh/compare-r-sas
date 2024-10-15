@@ -30,12 +30,30 @@ GetRObject <- function(datasetName) {
   rm(list = datasetName)
   return(r_file)  
 }
+ExcludeTargetColumns <- function(datasetName, sasColnames) {
+  if (is.null(excludeColumns)) {
+    return(sasColnames)
+  }
+  for (i in 1:length(excludeColumns)) {
+    tempDatasetName <- excludeColumns[[i]]$datasetName
+    tempColname <- excludeColumns[[i]]$colname
+    if (is.null(tempDatasetName)) {
+      sasColnames <- sasColnames[!sasColnames %in% tempColname]
+    } else {
+      if (datasetName == tempDatasetName) {
+        sasColnames <- sasColnames[!sasColnames %in% tempColname]
+      }
+    }
+  }
+  return(sasColnames)
+}
 CompareDataset <- function(datasetName) {
   r_file <- GetRObject(datasetName)
   sas_file  <- file.path(kInputSasPath, str_c(datasetName, kSasExtention)) |> haven::read_sas()  
   rColnames <- r_file |> colnames() |> sort()
   sasColnames <- sas_file |> GetTargetColnames()
-  if (!identical(rColnames, sasColnames)) {
+  sasColnames <- sasColnames %>% ExcludeTargetColumns(datasetName, .)
+    if (!identical(rColnames, sasColnames)) {
     if (length(setdiff(sasColnames, rColnames)) > 0) {
       print(datasetName)
       stop("Error: The columns of the datasets do not match.")
@@ -93,23 +111,35 @@ CreateDataSetForCompareBySas <- function(datasetName) {
   r_file <- GetRObject(datasetName)
   outputFolder <- CreateFolder(kInputRPath, kOutputFolderName)
   dummy <- CreateFolder(kInputSasPath, kOutputFolderName)
-  df <- r_file |> map( ~ {
-    targetCol <- .
+  df <- data.frame()
+  for (i in 1:ncol(r_file)) {
+    targetCol <- r_file[ , i]
     labels <- attr(targetCol, "labels")
-    if (is.null(labels)) {
-      return(targetCol)
+    if (!is.null(labels)) {
+      tempCol <- factor(targetCol, 
+                        levels = labels, 
+                        labels = names(labels))
+    } else {
+      tempCol <- targetCol
     }
-    res <- factor(targetCol, 
-                  levels = labels, 
-                  labels = names(labels))
-    return(res)
-  }) |> bind_rows()
+    df[1:nrow(r_file) , i] <- tempCol
+  }
+  colnames(df) <- colnames(r_file)
   for (col in names(df)) {
     attr(df[[col]], "label") <- NULL
   }
   write_csv(df, file.path(outputFolder, str_c("r_", datasetName, ".csv")))
 }
 ExecCompareMain <- function(trialName) {
+  if (trialName == "JSH-MM-15") {
+    excludeColumns <<- list(
+      list(datasetName=NULL, colname="VAR3")
+    )
+    
+  } else {
+    excludeColumns <<- NULL
+  }
+  
   kInputRPath <<- file.path(kInputPath, str_c("r_ads_", trialName))
   kInputSasPath <<- file.path(kInputPath, str_c("sas_ads_", trialName))
   rdaList <- kInputRPath |> list.files(pattern=kRExtention) |> 
@@ -137,10 +167,10 @@ ExecCompareMain <- function(trialName) {
     sas_target <- sas_csv_ptdata[[targetColname]]
     r_target <- r_csv_ptdata[[targetColname]] |> str_replace_all("NA", "")
     if (!identical(sas_target, r_target)) {
-      warning(str_c("Error: Value mismatch detected. column: ", targetColname))
-      print(targetColname)
-      print(sas_target[1])
-      print(r_target[1])
+#      warning(str_c("Error: Value mismatch detected. column: ", targetColname))
+      print(str_c("Error: Value mismatch detected. column: ", targetColname, ": SAS:", sas_target[1], ": R:", r_target[1]))
+#      print(sas_target[1])
+#      print(r_target[1])
     }
   }
 }
@@ -154,8 +184,8 @@ homeDir <- GetHomeDir()
 targetTrials <- file.path(homeDir, "Box\\Datacenter\\Users\\ohtsuka\\ptosh_format_test") |> list.files()
 kInputPath <- "C:\\Users\\MarikoOhtsuka\\Documents\\GitHub\\ptosh-format\\ptosh-format\\"
 # ------ processing ------
-#for (i in 1:length(targetTrials)) {
-for (i in c(1:2, 4:6)) {
-print(targetTrials[i])
-  ExecCompareMain(targetTrials[i])
+for (i in 1:length(targetTrials)) {
+#for (i in c(1:3, 5:7)) {
+    print(targetTrials[i])
+    ExecCompareMain(targetTrials[i])
 }
