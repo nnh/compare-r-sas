@@ -53,7 +53,7 @@ CompareDataset <- function(datasetName) {
   rColnames <- r_file |> colnames() |> sort()
   sasColnames <- sas_file |> GetTargetColnames()
   sasColnames <- sasColnames %>% ExcludeTargetColumns(datasetName, .)
-    if (!identical(rColnames, sasColnames)) {
+  if (!identical(rColnames, sasColnames)) {
     if (length(setdiff(sasColnames, rColnames)) > 0) {
       print(datasetName)
       stop("Error: The columns of the datasets do not match.")
@@ -162,15 +162,15 @@ ExecCompareMain <- function(trialName) {
   if (!identical(nrow(r_csv_ptdata), nrow(sas_csv_ptdata))) {
     stop("Error: Row Mismatch Detected")
   }
-  for (col in 1:ncol(sas_csv_ptdata)) {
+  for (col in 1:length(ptdataColname)) {
     targetColname <- ptdataColname[col]
     sas_target <- sas_csv_ptdata[[targetColname]]
-    r_target <- r_csv_ptdata[[targetColname]] |> str_replace_all("NA", "")
+    r_target <- r_csv_ptdata[[targetColname]] |> str_replace_all("NA", "") |> trimws()
     if (!identical(sas_target, r_target)) {
-#      warning(str_c("Error: Value mismatch detected. column: ", targetColname))
-      print(str_c("Error: Value mismatch detected. column: ", targetColname, ": SAS:", sas_target[1], ": R:", r_target[1]))
-#      print(sas_target[1])
-#      print(r_target[1])
+      warning(str_c("Error: Value mismatch detected. column: ", targetColname))
+#      print(str_c("Error: Value mismatch detected. column: ", targetColname, ": SAS:", sas_target[1], ": R:", r_target[1]))
+      print(sas_target[1])
+      print(r_target[1])
     }
   }
 }
@@ -184,8 +184,8 @@ homeDir <- GetHomeDir()
 targetTrials <- file.path(homeDir, "Box\\Datacenter\\Users\\ohtsuka\\ptosh_format_test") |> list.files()
 kInputPath <- "C:\\Users\\MarikoOhtsuka\\Documents\\GitHub\\ptosh-format\\ptosh-format\\"
 # ------ processing ------
-for (i in 1:length(targetTrials)) {
-#for (i in c(1:3, 5:7)) {
+#for (i in 1:length(targetTrials)) {
+for (i in c(1:3, 5:7)) {
     print(targetTrials[i])
     ExecCompareMain(targetTrials[i])
 }
