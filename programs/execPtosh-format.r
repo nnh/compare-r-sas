@@ -2,7 +2,7 @@
 #' description
 #' @file execPtosh-format.R
 #' @author Mariko Ohtsuka
-#' @date 2024.9.30
+#' @date 2024.10.18
 #'
 ################################################ 
 # ptosh-format\ptosh-format\program            #
@@ -56,9 +56,11 @@ homeDir <- GetHomeDir()
 target_dir <- file.path(homeDir, "Box\\Datacenter\\Users\\ohtsuka\\ptosh_format_test")
 ptosh_format_dir <- file.path(homeDir, "Documents\\GitHub\\ptosh-format")
 ptosh_format_input_dir <- file.path(ptosh_format_dir, "input")
-targetTrials <- list.files(target_dir)
+issue7Negative <- c("issue7_1", "issue7_2", "issue7_3", "issue7_4", "issue7_5") # stopエラーになるのが正なので個別にテストを実行する必要がある
+targetTrials <- list.files(target_dir) |> setdiff(issue7Negative)
 for (execPtoshFormatIdx in 1:length(targetTrials)) {
   print(targetTrials[execPtoshFormatIdx])
   ExecPtoshFormat(targetTrials[execPtoshFormatIdx])
   rm(list=setdiff(ls(), c("execPtoshFormatIdx", "targetTrials", "ExecPtoshFormat", "ptosh_format_input_dir", "target_dir")))
 }
+
