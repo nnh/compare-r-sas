@@ -30,6 +30,7 @@ SAS version : 9.4
 %process_files(issue7_4);
 %process_files(issue7_5);
 */
+%process_files(issue21);
 %process_files(issue7_6);
 %process_files(issue7_7);
 %process_files(issue7_8);

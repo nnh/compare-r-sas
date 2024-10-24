@@ -2,7 +2,7 @@
 #' description
 #' @file execPtosh-format.R
 #' @author Mariko Ohtsuka
-#' @date 2024.10.18
+#' @date 2024.10.23
 #'
 ################################################ 
 # ptosh-format\ptosh-format\program            #
@@ -33,9 +33,13 @@ ExecPtoshFormat <- function(trialName) {
   kExtfolderName <- "ext"
   kSheetCsv <- "sheets.csv"
   kOptionCsv <- "options.csv"
+  outputDirName <- here(str_c("r_ads_", trialName))
   # remove dir
   if (file.exists(ptosh_format_input_dir) && dir.exists(ptosh_format_input_dir)) {
     unlink(ptosh_format_input_dir, recursive = T)
+  }
+  if (file.exists(outputDirName) && dir.exists(outputDirName)) {
+    unlink(outputDirName, recursive = T)
   }
   # file copy
   dir.create(ptosh_format_input_dir)
@@ -49,7 +53,7 @@ ExecPtoshFormat <- function(trialName) {
   rawDataList <- list.files(file.path(inputFolder, kRawDatafolderName), full.names=T)
   rawDataList |> map( ~ file.copy(., rawdataDir))
   source(file.path(ptosh_format_prg_dir, "ptosh-format.R"), encoding='utf-8')
-  file.rename(here("ads"), here(str_c("r_ads_", trialName)))
+  file.rename(here("ads"), outputDirName)
 }
 # ------ main ------
 homeDir <- GetHomeDir()
